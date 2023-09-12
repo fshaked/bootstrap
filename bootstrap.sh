@@ -13,14 +13,18 @@ JOBS="${JOBS:-$(nproc)}"
 SSHCONFIG="${SSHCONFIG:-${HOME}/.ssh/config}"
 GITURL="${GITURL:-git@github.com:fshaked/scripts.git}"
 
-BASHBASE="${BASHBASE:-bash-5.2.15}"
-BASHURL="${BASHURL:-https://ftp.gnu.org/gnu/bash/}"
-
 MAKEBASE="${MAKEBASE:-make-4.4}"
 MAKEURL="${MAKEURL:-https://ftp.gnu.org/gnu/make/}"
 
+BASHBASE="${BASHBASE:-bash-5.2.15}"
+BASHURL="${BASHURL:-https://ftp.gnu.org/gnu/bash/}"
+
 EMACSBASE="${EMACSBASE:-emacs-29.1}"
 EMACSURL="${EMACSURL:-https://ftp.gnu.org/gnu/emacs/}"
+
+FZFVER="0.42.0"
+FZFBASE="fzf-${FZFVER}-linux_amd64"
+FZFURL="https://github.com/junegunn/fzf/releases/download/${FZFVER}/${FZFBASE}.tar.gz"
 
 github_keys() {
   if [ ! "${EMAIL}" ]; then
@@ -52,6 +56,16 @@ clone_scripts() {
   git clone "${GITURL}" "${SCRIPTSDIR}"
 }
 
+install_make() {
+  [ -f "${MAKEBASE}.tar.gz" ] || wget "${MAKEURL}${MAKEBASE}.tar.gz"
+  [ -d "${MAKEBASE}" ] || tar -zxf "${MAKEBASE}.tar.gz"
+
+  cd "${MAKEBASE}"
+  ./configure --prefix="${PREFIX}"
+  make -j "${JOBS}"
+  make install
+}
+
 install_bash() {
   [ -f "${BASHBASE}.tar.gz" ] || wget "${BASHURL}${BASHBASE}.tar.gz"
   [ -d "${BASHBASE}" ] || tar -zxf "${BASHBASE}.tar.gz"
@@ -62,14 +76,19 @@ install_bash() {
   make install
 }
 
-install_make() {
-  [ -f "${MAKEBASE}.tar.gz" ] || wget "${MAKEURL}${MAKEBASE}.tar.gz"
-  [ -d "${MAKEBASE}" ] || tar -zxf "${MAKEBASE}.tar.gz"
-
-  cd "${MAKEBASE}"
-  ./configure --prefix="${PREFIX}"
-  make -j "${JOBS}"
-  make install
+install_fzf() {
+  [ -f "${FZFBASE}.tar.gz" ] || wget "${FZFURL}"
+  tar -zxf "${FZFBASE}.tar.gz"
+  mv fzf "${PREFIX}/bin/"
+  # It's also very easy to build fzf:
+  # # first, if needed (try: `go version`), download go-lang:
+  # # wget https://go.dev/dl/go1.21.1.linux-amd64.tar.gz
+  # # tar -zxf go1.21.1.linux-amd64.tar.gz
+  # # export PATH="${PWD}/go/bin:${PATH}"
+  # git clone https://github.com/junegunn/fzf.git
+  # make -C fzf
+  # make -C fzf install
+  # cp fzf/bin/fzf "${PREFIX}/bin/"
 }
 
 install_emacs() {
@@ -91,6 +110,7 @@ github_keys    Generate and install ssh keys for GitHub.
 clone_scripts
 install_bash
 install_make
+install_fzf
 install_emacs
 EOF
 }

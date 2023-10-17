@@ -16,18 +16,27 @@ JOBS="${JOBS:-$(nproc)}"
 SSHCONFIG="${SSHCONFIG:-${HOME}/.ssh/config}"
 GITURL="${GITURL:-git@github.com:fshaked/scripts.git}"
 
-MAKEBASE="${MAKEBASE:-make-4.4}"
+MYDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+
+# Read _*_version variables
+. "${MYDIR}/versions.sh"
+
+make_version="${make_version:-${_make_version}}"
+bash_version="${bash_version:-${_bash_version}}"
+emacs_version="${emacs_version:-${_emacs_version}}"
+fzf_version="${fzf_version:-${_fzf_version}}"
+
+MAKEBASE="${MAKEBASE:-make-${make_version}}"
 MAKEURL="${MAKEURL:-https://ftp.gnu.org/gnu/make/}"
 
-BASHBASE="${BASHBASE:-bash-5.2.15}"
+BASHBASE="${BASHBASE:-bash-${bash_version}}"
 BASHURL="${BASHURL:-https://ftp.gnu.org/gnu/bash/}"
 
-EMACSBASE="${EMACSBASE:-emacs-29.1}"
+EMACSBASE="${EMACSBASE:-emacs-${emacs_version}}"
 EMACSURL="${EMACSURL:-https://ftp.gnu.org/gnu/emacs/}"
 
-FZFVER="0.42.0"
-FZFBASE="fzf-${FZFVER}-linux_amd64"
-FZFURL="https://github.com/junegunn/fzf/releases/download/${FZFVER}/${FZFBASE}.tar.gz"
+FZFBASE="fzf-${fzf_version}-linux_amd64"
+FZFURL="https://github.com/junegunn/fzf/releases/download/${fzf_version}/${FZFBASE}.tar.gz"
 
 github_keys() {
   if [ ! "${EMAIL}" ]; then
@@ -36,7 +45,7 @@ github_keys() {
   fi
 
   if [ -f "${KEYFILE}" ]; then
-    printf 'Error: file already exists: %s' "${KEYFILE}\n" >&2
+    printf 'Error: file already exists: %s\n' "${KEYFILE}\n" >&2
   fi
 
   if grep -q '^Host github.com$' "${SSHCONFIG}" >/dev/null 2>/dev/null ; then
@@ -64,8 +73,8 @@ install_make() {
   [ -d "${MAKEBASE}" ] || tar -zxf "${MAKEBASE}.tar.gz"
 
   cd "${MAKEBASE}"
-  ./configure --prefix="${PREFIX}"
-  make -j "${JOBS}"
+  ./configure --prefix="${PREFIX}" || return
+  make -j "${JOBS}" || return
   make install
 }
 
@@ -74,8 +83,8 @@ install_bash() {
   [ -d "${BASHBASE}" ] || tar -zxf "${BASHBASE}.tar.gz"
 
   cd "${BASHBASE}"
-  ./configure --prefix="${PREFIX}"
-  make -j "${JOBS}"
+  ./configure --prefix="${PREFIX}" || return
+  make -j "${JOBS}" || return
   make install
 }
 
@@ -89,8 +98,8 @@ install_fzf() {
   # # tar -zxf go1.21.1.linux-amd64.tar.gz
   # # export PATH="${PWD}/go/bin:${PATH}"
   # git clone https://github.com/junegunn/fzf.git
-  # make -C fzf
-  # make -C fzf install
+  # make -C fzf || return
+  # make -C fzf install || return
   # cp fzf/bin/fzf "${PREFIX}/bin/"
 }
 
@@ -104,6 +113,14 @@ install_emacs() {
   make install
 }
 
+gen_versions_file() {
+  dpkg-query --show --showformat='${Package},${source:Upstream-Version}\n' make bash fzf emacs 2>/dev/null | \
+    sed -E 's/\+.*//' | \
+    while IFS=, read -r package version; do
+      printf '_%s_version="%s"\n' "${package}" "${version}"
+    done > "${MYDIR}/versions.sh"
+}
+
 help() {
   cat <<EOF
 Available commands:
@@ -115,6 +132,7 @@ install_bash
 install_make
 install_fzf
 install_emacs
+gen_versions_file  Recreate versions.sh with versions from dpkg on the current host.
 EOF
 }
 
@@ -126,6 +144,7 @@ main() {
     install_make);&
     install_fzf);&
     install_emacs);&
+    gen_versions_file);&
     help)
       "$@"
       ;;

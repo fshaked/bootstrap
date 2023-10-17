@@ -1,5 +1,8 @@
 #!/usr/bin/env sh
 
+## NB: this is an sh script, not bash. We can't assume a new host will have an
+## up to date bash installed.
+
 set -e
 
 PREFIX="${HOME}/.local"
@@ -116,11 +119,22 @@ EOF
 }
 
 main() {
-  if [ "${1:-}" ]; then
-    "$1"
-  else
-    help
-  fi
+  case "${1:-}" in
+    github_keys);&
+    clone_scripts);&
+    install_bash);&
+    install_make);&
+    install_fzf);&
+    install_emacs);&
+    help)
+      "$@"
+      ;;
+    *)
+      printf 'Error: unknown command: %s\n' "$1" >&2
+      help >&2
+      exit 2
+      ;;
+  esac
 }
 
 main "$@"

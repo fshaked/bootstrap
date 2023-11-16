@@ -5,6 +5,7 @@
 
 set -e
 
+# Where to install binaries.
 PREFIX="${HOME}/.local"
 
 EMAIL="${EMAIL:-}"
@@ -16,7 +17,7 @@ JOBS="${JOBS:-$(nproc)}"
 SSHCONFIG="${SSHCONFIG:-${HOME}/.ssh/config}"
 GITURL="${GITURL:-git@github.com:fshaked/scripts.git}"
 
-MYDIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+MYDIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
 # Read _*_version variables
 . "${MYDIR}/versions.sh"
@@ -40,16 +41,17 @@ FZFURL="https://github.com/junegunn/fzf/releases/download/${fzf_version}/${FZFBA
 
 github_keys() {
   if [ ! "${EMAIL}" ]; then
-    printf 'Error: $EMAIL is not set\n' >&2
+    printf 'Error: EMAIL is not set\n' >&2
     exit 2
   fi
 
   if [ -f "${KEYFILE}" ]; then
-    printf 'Error: file already exists: %s\n' "${KEYFILE}\n" >&2
+    printf 'Warning: file already exists: %s\n' "${KEYFILE}" >&2
+    printf 'Set KEYFILE to change the file.\n' >&2
   fi
 
   if grep -q '^Host github.com$' "${SSHCONFIG}" >/dev/null 2>/dev/null ; then
-    printf 'Error: github.com is already in %s\n' "${SSHCONFIG}" >&2
+    printf 'Warning: github.com is already in %s\n' "${SSHCONFIG}" >&2
   fi
 
   mkdir -pm 0700 "${HOME}/.ssh"
@@ -60,12 +62,14 @@ Host github.com
   IdentityFile "${KEYFILE}"
 EOF
 
-  printf "Now go to 'https://github.com/settings/keys', add a new SSH key, and paste the following into the key field:"
+  printf "Now go to 'https://github.com/settings/keys', add a new SSH key, and paste the following into the key field:\n"
   cat "${KEYFILE}.pub"
+  printf "Then run 'bootstrap.sh clone_scripts'.\n"
 }
 
 clone_scripts() {
   git clone "${GITURL}" "${SCRIPTSDIR}"
+  printf "Now go to '%s' and run 'make install-bash'.\n" "${SCRIPTSDIR}"
 }
 
 install_make() {
@@ -138,16 +142,14 @@ EOF
 
 main() {
   case "${1:-}" in
-    github_keys);&
-    clone_scripts);&
-    install_bash);&
-    install_make);&
-    install_fzf);&
-    install_emacs);&
-    gen_versions_file);&
-    help)
-      "$@"
-      ;;
+    github_keys) "$@" ;;
+    clone_scripts) "$@" ;;
+    install_bash) "$@" ;;
+    install_make) "$@" ;;
+    install_fzf) "$@" ;;
+    install_emacs) "$@" ;;
+    gen_versions_file) "$@" ;;
+    help) "$@" ;;
     *)
       printf 'Error: unknown command: %s\n' "$1" >&2
       help >&2

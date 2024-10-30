@@ -15,7 +15,9 @@ SCRIPTSDIR="${SCRIPTSDIR:-${HOME}/scripts}"
 JOBS="${JOBS:-$(nproc)}"
 
 SSHCONFIG="${SSHCONFIG:-${HOME}/.ssh/config}"
-GITURL="${GITURL:-git@github.com:fshaked/scripts.git}"
+
+GITHOMEURL="${GITHOMEURL:-git@github.com:fshaked/home-git-repo.git}"
+GITSCRIPTSURL="${GITSCRIPTSURL:-git@github.com:fshaked/scripts.git}"
 
 MYDIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
@@ -64,11 +66,28 @@ EOF
 
   printf "Now go to 'https://github.com/settings/keys', add a new SSH key, and paste the following into the key field:\n"
   cat "${KEYFILE}.pub"
-  printf "Then run 'bootstrap.sh clone_scripts'.\n"
+  printf "Then run 'bootstrap.sh clone_home NEW_BRANCH'\n"
+  printf "followed by 'bootstrap.sh clone_scripts'.\n"
+
+}
+
+# $1 should be a name for the new branch (e.g. 'work-laptop')
+clone_home() {
+  local new_branch="$1"
+  if [ -z "${new_branch}" ]; then
+    printf -- 'Error: clone_home expects a NEW_BRANCH\n' >&2
+    exit 2
+  fi
+
+  git clone "${GITHOMEURL}" --separate-git-dir "${HOME}/home-git-repo" "${HOME}"
+  git -C "${HOME}" checkout -b "${new_branch}"
+  git -C "${HOME}" worktree add "${HOME}/home-git-main" main
+
+  printf "Now run 'bootstrap.sh clone_scripts'.\n"
 }
 
 clone_scripts() {
-  git clone "${GITURL}" "${SCRIPTSDIR}"
+  git clone "${GITSCRIPTSURL}" "${SCRIPTSDIR}"
   printf "Now go to '%s' and run 'make install-bash'.\n" "${SCRIPTSDIR}"
 }
 
@@ -131,6 +150,7 @@ Available commands:
 github_keys    Generate and install ssh keys for GitHub.
                Required:
                  EMAIL - must be set to some email.
+clone_home NEW_BRANCH
 clone_scripts
 install_bash
 install_make
@@ -143,6 +163,7 @@ EOF
 main() {
   case "${1:-}" in
     github_keys) "$@" ;;
+    clone_home) "$@" ;;
     clone_scripts) "$@" ;;
     install_bash) "$@" ;;
     install_make) "$@" ;;

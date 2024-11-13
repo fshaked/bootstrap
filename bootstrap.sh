@@ -81,10 +81,8 @@ clone_home() {
 
   git clone "${GITHOMEURL}" --separate-git-dir "${HOME}/.home-git-repo" "${HOME}"
   git -C "${HOME}" checkout -b "${new_branch}"
-  git -C "${HOME}" worktree add "${HOME}/home-git-main" main
 
-  rm -f "${HOME}"/.dot-git
-  mv "${HOME}"/.git "${HOME}"/.dot-git
+  mv -f "${HOME}"/.git "${HOME}"/.dot-git
 
   printf "Now run 'bootstrap.sh clone_scripts'.\n"
 }

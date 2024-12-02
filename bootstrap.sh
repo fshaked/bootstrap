@@ -88,7 +88,7 @@ clone_home() {
 }
 
 clone_scripts() {
-  git clone "${GITSCRIPTSURL}" "${SCRIPTSDIR}"
+  git clone --recurse-submodules "${GITSCRIPTSURL}" "${SCRIPTSDIR}"
   printf "Now go to '%s' and run 'make install-bash'.\n" "${SCRIPTSDIR}"
 }
 

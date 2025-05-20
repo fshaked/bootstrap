@@ -16,6 +16,8 @@ JOBS="${JOBS:-$(nproc)}"
 
 SSHCONFIG="${SSHCONFIG:-${HOME}/.ssh/config}"
 
+GITBOOTSTRAPURL="${GITBOOTSTRAPURL:-git@github.com:fshaked/bootstrap.git}"
+
 GITHOMEURL="${GITHOMEURL:-git@github.com:fshaked/home-git-repo.git}"
 GITSCRIPTSURL="${GITSCRIPTSURL:-git@github.com:fshaked/scripts.git}"
 
@@ -64,11 +66,14 @@ Host github.com
   IdentityFile "${KEYFILE}"
 EOF
 
+  # Now that we can authenticate, change the url from https to ssh.
+  git -C "${MYDIR}" remote set-url origin "${GITBOOTSTRAPURL}"
+
+  printf '\n'
   printf "Now go to 'https://github.com/settings/keys', add a new SSH key, and paste the following into the key field:\n"
   cat "${KEYFILE}.pub"
   printf "Then run 'bootstrap.sh clone_home NEW_BRANCH'\n"
   printf "followed by 'bootstrap.sh clone_scripts'.\n"
-
 }
 
 # $1 should be a name for the new branch (e.g. 'work-laptop')
@@ -79,16 +84,30 @@ clone_home() {
     exit 2
   fi
 
-  git clone "${GITHOMEURL}" --separate-git-dir "${HOME}/.home-git-repo" "${HOME}"
-  git -C "${HOME}" checkout -b "${new_branch}"
+  # We can't clone if home is not empty, instead we init, and setup remote origin.
+  git -C "${HOME}" init --separate-git-dir "${HOME}/.home-git-repo" -b "${new_branch}"
+  git -C "${HOME}" remote add origin "${GITHOMEURL}"
+  git -C "${HOME}" fetch
+
+  # Copy .gitignore from the the main branch to make life easier.
+  git -C "${HOME}" checkout origin/main -- .gitignore
 
   mv -f "${HOME}"/.git "${HOME}"/.dot-git
 
+  printf '\n'
+  printf "(you can manipulate the home-git-repo using 'bootstrap.sh git_home GIT_COMMAND ...')\n"
+  printf "(or 'ln -s .dot-git .git', and use 'git'.)\n"
   printf "Now run 'bootstrap.sh clone_scripts'.\n"
+}
+
+git_home() {
+  git --git-dir="${HOME}/.dot-git" --work-tree="${HOME}" "$@"
 }
 
 clone_scripts() {
   git clone --recurse-submodules "${GITSCRIPTSURL}" "${SCRIPTSDIR}"
+
+  printf '\n'
   printf "Now go to '%s' and run 'make install-bash'.\n" "${SCRIPTSDIR}"
 }
 
@@ -152,6 +171,7 @@ github_keys    Generate and install ssh keys for GitHub.
                Required:
                  EMAIL - must be set to some email.
 clone_home NEW_BRANCH
+git_home
 clone_scripts
 install_bash
 install_make
@@ -165,6 +185,7 @@ main() {
   case "${1:-}" in
     github_keys) "$@" ;;
     clone_home) "$@" ;;
+    git_home) "$@" ;;
     clone_scripts) "$@" ;;
     install_bash) "$@" ;;
     install_make) "$@" ;;

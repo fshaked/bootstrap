@@ -21,6 +21,8 @@ GITBOOTSTRAPURL="${GITBOOTSTRAPURL:-git@github.com:fshaked/bootstrap.git}"
 GITHOMEURL="${GITHOMEURL:-git@github.com:fshaked/home-git-repo.git}"
 GITSCRIPTSURL="${GITSCRIPTSURL:-git@github.com:fshaked/scripts.git}"
 
+DROPBEARKEY="/usr/sbin/dropbearkey"
+
 MYDIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
 # Read _*_version variables
@@ -28,6 +30,7 @@ MYDIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
 make_version="${make_version:-${_make_version}}"
 bash_version="${bash_version:-${_bash_version}}"
+coreutils_version="${coreutils_version:-${_coreutils_version}}"
 emacs_version="${emacs_version:-${_emacs_version}}"
 fzf_version="${fzf_version:-${_fzf_version}}"
 
@@ -37,6 +40,9 @@ MAKEURL="${MAKEURL:-https://ftp.gnu.org/gnu/make/}"
 BASHBASE="${BASHBASE:-bash-${bash_version}}"
 BASHURL="${BASHURL:-https://ftp.gnu.org/gnu/bash/}"
 
+COREUTILSBASE="${COREUTILSBASE:-coreutils-${coreutils_version}}"
+COREUTILSURL="${COREUTILSURL:-https://ftp.gnu.org/gnu/coreutils/}"
+
 EMACSBASE="${EMACSBASE:-emacs-${emacs_version}}"
 EMACSURL="${EMACSURL:-https://ftp.gnu.org/gnu/emacs/}"
 
@@ -44,6 +50,12 @@ FZFBASE="fzf-${fzf_version}-linux_amd64"
 FZFURL="https://github.com/junegunn/fzf/releases/download/${fzf_version}/${FZFBASE}.tar.gz"
 
 github_keys() {
+  if ! which ssh-keygen >/dev/null 2>&1 && [ -f "${DROPBEARKEY}" ]; then
+    printf 'Warning: ssh-keygen is not installed, using dropbearkey instead.\n' >&2
+    dropbear_github_keys "$@"
+    return
+  fi
+
   if [ ! "${EMAIL}" ]; then
     printf 'Error: EMAIL is not set\n' >&2
     exit 2
@@ -72,6 +84,26 @@ EOF
   printf '\n'
   printf "Now go to 'https://github.com/settings/keys', add a new SSH key, and paste the following into the key field:\n"
   cat "${KEYFILE}.pub"
+  printf "Then run 'bootstrap.sh clone_home NEW_BRANCH'\n"
+  printf "followed by 'bootstrap.sh clone_scripts'.\n"
+}
+
+dropbear_github_keys() {
+  KEYFILE="${HOME}/.ssh/id_dropbear"
+
+  if [ -f "${KEYFILE}" ]; then
+    printf 'Warning: file already exists: %s\n' "${KEYFILE}" >&2
+  fi
+
+  mkdir -pm 0700 "${HOME}/.ssh"
+  "${DROPBEARKEY}" -t ed25519 -f "${KEYFILE}"
+
+  # Now that we can authenticate, change the url from https to ssh.
+  git -C "${MYDIR}" remote set-url origin "${GITBOOTSTRAPURL}"
+
+  printf '\n'
+  printf "Now go to 'https://github.com/settings/keys', add a new SSH key, and paste the following into the key field:\n"
+  "${DROPBEARKEY}" -y -f "${KEYFILE}"
   printf "Then run 'bootstrap.sh clone_home NEW_BRANCH'\n"
   printf "followed by 'bootstrap.sh clone_scripts'.\n"
 }
@@ -131,6 +163,15 @@ install_bash() {
   make install
 }
 
+install_coreutils() {
+  [ -f "${COREUTILSBASE}.tar.gz" ] || wget "${COREUTILSURL}${COREUTILSBASE}.tar.gz"
+  [ -d "${COREUTILSBASE}" ] || tar -zxf "${COREUTILSBASE}.tar.gz"
+
+  cd "${COREUTILSBASE}"
+  ./configure --prefix="${PREFIX}" || return
+  make -j "${JOBS}" install-exec
+}
+
 install_fzf() {
   [ -f "${FZFBASE}.tar.gz" ] || wget "${FZFURL}"
   tar -zxf "${FZFBASE}.tar.gz"
@@ -157,7 +198,7 @@ install_emacs() {
 }
 
 gen_versions_file() {
-  dpkg-query --show --showformat='${Package},${source:Upstream-Version}\n' make bash fzf emacs 2>/dev/null | \
+  dpkg-query --show --showformat='${Package},${source:Upstream-Version}\n' make bash coreutils fzf emacs 2>/dev/null | \
     sed -E 's/\+.*//' | \
     while IFS=, read -r package version; do
       printf '_%s_version="%s"\n' "${package}" "${version}"
@@ -174,6 +215,7 @@ clone_home NEW_BRANCH
 git_home
 clone_scripts
 install_bash
+install_coreutils
 install_make
 install_fzf
 install_emacs
@@ -184,10 +226,12 @@ EOF
 main() {
   case "${1:-}" in
     github_keys) "$@" ;;
+    dropbear_github_keys) "$@" ;;
     clone_home) "$@" ;;
     git_home) "$@" ;;
     clone_scripts) "$@" ;;
     install_bash) "$@" ;;
+    install_coreutils) "$@" ;;
     install_make) "$@" ;;
     install_fzf) "$@" ;;
     install_emacs) "$@" ;;

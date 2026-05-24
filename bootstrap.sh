@@ -21,7 +21,7 @@ GITBOOTSTRAPURL="${GITBOOTSTRAPURL:-git@github.com:fshaked/bootstrap.git}"
 GITHOMEURL="${GITHOMEURL:-git@github.com:fshaked/home-git-repo.git}"
 GITSCRIPTSURL="${GITSCRIPTSURL:-git@github.com:fshaked/scripts.git}"
 
-DROPBEARKEY="/usr/sbin/dropbearkey"
+DROPBEARKEY="${DROPBEARKEY:-/usr/sbin/dropbearkey}"
 
 MYDIR=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
 
@@ -46,8 +46,11 @@ COREUTILSURL="${COREUTILSURL:-https://ftp.gnu.org/gnu/coreutils/}"
 EMACSBASE="${EMACSBASE:-emacs-${emacs_version}}"
 EMACSURL="${EMACSURL:-https://ftp.gnu.org/gnu/emacs/}"
 
-FZFBASE="fzf-${fzf_version}-linux_amd64"
-FZFURL="https://github.com/junegunn/fzf/releases/download/${fzf_version}/${FZFBASE}.tar.gz"
+FZFBASE="${FZFBASE:-fzf-${fzf_version}-linux_amd64}"
+# FZFBASE="${FZFBASE:-fzf-${fzf_version}-linux_arm64}"
+FZFURL="${FZFURL:-https://github.com/junegunn/fzf/releases/download/${fzf_version}/${FZFBASE}.tar.gz}"
+
+GITGSRCURL="${GITGSRCURL:-https://https.git.savannah.gnu.org/git/gsrc.git}"
 
 github_keys() {
   if ! which ssh-keygen >/dev/null 2>&1 && [ -f "${DROPBEARKEY}" ]; then
@@ -205,6 +208,52 @@ gen_versions_file() {
     done > "${MYDIR}/versions.sh"
 }
 
+install_gsrc_packages() {
+  git clone --depth=1 "${GITGSRCURL}" "${HOME}/gsrc"
+  cd "${HOME}/gsrc"
+  ./bootstrap
+  ./configure --prefix="${HOME}/gnu"
+  . ./setup.sh
+
+  # Might give a warning about miggin makeinfo and exit with 127
+  # That seems to be ok.
+  make  install || true
+
+  echo 'source "${HOME}/gsrc/setup.sh"' >> "${HOME}/.bashrc"
+
+  # Build `xz` without installing it, as the install target uses `find` options that
+  # might not be supported by the installed one:
+  make -C pkg/other/xz build
+
+  # Build `findutils`, with augmented `PATH` and `LD_LIBRARY_PATH` to use the built
+  # (but not installed) `xz`. This also has to be done in two steps: first build
+  # `findutils`, than use it to install itself.
+  PATH="$(echo "$HOME"/gnu/packages/xz-*/bin)":"$PATH" \
+    LD_LIBRARY_PATH="$(echo "$HOME"/gnu/packages/xz-*/lib)":"$LD_LIBRARY_PATH" \
+    make -C pkg/gnu/findutils build
+
+  PATH="$(echo "$HOME"/gnu/packages/xz-*/bin)":"$(echo "$HOME"/gnu/packages/findutils-*/bin)":"$PATH" \
+    LD_LIBRARY_PATH="$(echo "$HOME"/gnu/packages/xz-*/lib)":"$LD_LIBRARY_PATH" \
+    make -C pkg/gnu/findutils install
+
+  # Finish installing `xz`:
+  make -C pkg/other/xz install
+
+  # Build coreutils (the `man1_MANS=` is required when the system perl is missing
+  # modules that are used when generating man pages), and other basic tools:
+  # The order of building is important
+  make -C pkg/gnu/coreutils install man1_MANS=
+  make -C pkg/other/lzip install
+  make -C pkg/gnu/patch install
+
+  # make -C pkg/gnu/make install
+  # make -C pkg/gnu/bash install
+  # make -C pkg/gnu/tar install
+  # make -C pkg/gnu/gzip install
+  # make -C pkg/gnu/ncurses install
+  # make -C pkg/gnu/gawk install
+}
+
 help() {
   cat <<EOF
 Available commands:
@@ -219,6 +268,7 @@ install_coreutils
 install_make
 install_fzf
 install_emacs
+install_gsrc_packages
 gen_versions_file  Recreate versions.sh with versions from dpkg on the current host.
 EOF
 }
@@ -235,6 +285,7 @@ main() {
     install_make) "$@" ;;
     install_fzf) "$@" ;;
     install_emacs) "$@" ;;
+    install_gsrc_packages) "$@" ;;
     gen_versions_file) "$@" ;;
     help) "$@" ;;
     *)
